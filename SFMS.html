@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure File System (Demo)</title>
+    <!-- 1. Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use a clean, modern font */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Simple spinner for loading states */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+
+    <!-- 
+      This is the main application wrapper.
+      We will toggle between the 'login-view' and 'app-view' divs.
+    -->
+    <div id="app-container" class="min-h-screen flex items-center justify-center p-4">
+
+        <!-- ====================================================== -->
+        <!-- LOGIN VIEW                                             -->
+        <!-- ====================================================== -->
+        <div id="login-view" class="w-full max-w-md">
+            <div class="bg-white rounded-2xl shadow-2xl p-8">
+                <h2 class="text-3xl font-bold text-center text-gray-800 mb-2">Secure File System</h2>
+                <p class="text-center text-gray-500 mb-8">Conceptual Demo</p>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                        <input type="text" id="username" value="admin" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="try 'admin' or 'user'">
+                    </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input type="password" id="password" value="pass123" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="try 'pass123'">
+                    </div>
+                    
+                    <!-- 2FA Simulation -->
+                    <div id="2fa-section" class="hidden space-y-2">
+                         <label for="2fa-code" class="block text-sm font-medium text-gray-700">2FA Code</label>
+                         <input type="text" id="2fa-code" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" placeholder="123456">
+                         <p class="text-xs text-gray-500">In a real app, this would come from an Authenticator App or SMS.</p>
+                    </div>
+
+                    <button id="login-button" class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold shadow-lg hover:bg-blue-700 transition duration-300">Login</button>
+                    <button id="2fa-button" class="w-full hidden bg-green-600 text-white p-3 rounded-lg font-semibold shadow-lg hover:bg-green-700 transition duration-300">Verify Code</button>
+
+                    <p id="login-error" class="text-red-500 text-sm text-center"></p>
+                </div>
+            </div>
+            <p class="text-center text-gray-500 text-xs mt-4">
+                <strong>Note:</strong> This is a simulation. No data is saved.
+            </p>
+        </div>
+
+        <!-- ====================================================== -->
+        <!-- MAIN APPLICATION VIEW (Hidden by default)              -->
+        <!-- ====================================================== -->
+        <!-- Increased width to max-w-6xl to accommodate tags -->
+        <div id="app-view" class="hidden w-full max-w-6xl">
+            <div class="bg-white rounded-2xl shadow-2xl p-8">
+                <!-- Header -->
+                <div class="flex justify-between items-center mb-6 pb-4 border-b">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800">My Secure Files</h2>
+                        <p class="text-gray-500">Welcome, <span id="user-greeting" class="font-semibold"></span>!</p>
+                    </div>
+                    <button id="logout-button" class="bg-red-500 text-white py-2 px-5 rounded-lg font-semibold hover:bg-red-600 transition">Logout</button>
+                </div>
+
+                <!-- File Upload Section -->
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-8">
+                    <h3 class="text-xl font-semibold mb-4">Upload a New File</h3>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <input type="file" id="file-input" class="flex-grow file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <button id="upload-button" class="bg-blue-600 text-white py-2 px-6 rounded-lg font-semibold shadow-md hover:bg-blue-700 transition">Upload</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3">
+                        <strong>Simulation:</strong> Uploading will add the file to the list and
+                        <strong>✨ generate AI tags</strong>. Text files will be readable.
+                    </p>
+                </div>
+
+                <!-- File List Section -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">File List</h3>
+                    <div class="overflow-x-auto rounded-lg border border-gray-200">
+                        <table class="w-full min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File Name & Tags</th>
+                                    <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                                    <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metadata</th>
+                                    <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="file-list-body" class="bg-white divide-y divide-gray-200">
+                                <!-- File rows will be injected here by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ====================================================== -->
+    <!-- GENERAL PURPOSE MODAL (for Alerts, Prompts, etc.)      -->
+    <!-- ====================================================== -->
+    <div id="general-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 p-4 transition-opacity duration-300">
+        <!-- Increased modal width for editor -->
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 transform transition-all scale-95 opacity-0" id="modal-content">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="modal-title" class="text-xl font-semibold text-gray-800">Modal Title</h3>
+                <button id="modal-close-btn" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+            </div>
+            <!-- Modal Body -->
+            <div id="modal-body" class="text-gray-600 mb-6 max-h-[60vh] overflow-y-auto">
+                <!-- Content is injected by JavaScript -->
+            </div>
+            <!-- Modal Footer -->
+            <div id="modal-footer" class="flex justify-end gap-3">
+                <!-- Buttons are injected by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ====================================================== -->
+    <!-- JAVASCRIPT LOGIC                                       -->
+    <!-- ====================================================== -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- 1. GEMINI API CONFIGURATION ---
+            const apiKey = ""; // Leave as-is, will be populated by the environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            /**
+             * A simple fetch wrapper with exponential backoff.
+             * @param {string} url - The URL to fetch.
+             * @param {object} options - The fetch options.
+             * @param {number} retries - Number of retries left.
+             * @param {number} delay - Current delay in ms.
+             * @returns {Promise<Response>}
+             */
+            async function fetchWithRetry(url, options, retries = 5, delay = 1000) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        // Don't retry on client errors, but do on server errors
+                        if (response.status >= 400 && response.status < 500) {
+                            console.error("Client error:", response.status, response.statusText);
+                            throw new Error(`Client error: ${response.status}`);
+                        }
+                        // Retry on server errors
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                    return response;
+                } catch (error) {
+                    if (retries > 0) {
+                        // Do not log retry attempts as errors
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return fetchWithRetry(url, options, retries - 1, delay * 2);
+                    } else {
+                        console.error("Fetch failed after retries:", error);
+                        throw error;
+                    }
+                }
+            }
+
+            /**
+             * Calls the Gemini API with a system prompt and user prompt.
+             * @param {string} systemInstruction - The system prompt to guide the AI.
+             * @param {string} userPrompt - The user's query.
+             * @returns {Promise<string>} - The AI's text response.
+             */
+            async function callGeminiAPI(systemInstruction, userPrompt) {
+                const payload = {
+                    contents: [{ parts: [{ text: userPrompt }] }],
+                    systemInstruction: {
+                        parts: [{ text: systemInstruction }]
+                    },
+                };
+
+                try {
+                    const response = await fetchWithRetry(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+
+                    if (candidate && candidate.content?.parts?.[0]?.text) {
+                        return candidate.content.parts[0].text;
+                    } else {
+                        throw new Error("Invalid API response structure.");
+                    }
+                } catch (error) {
+                    console.error("Error calling Gemini API:", error);
+                    return `Error: Could not get a response. ${error.message}`;
+                }
+            }
+
+
+            // --- 2. MOCK DATABASE & STATE ---
+            
+            // Mock user database
+            const mockUserDb = {
+                "admin": { password: "pass123", needs2FA: true },
+                "user": { password: "pass123", needs2FA: false }
+            };
+
+            // Mock file database
+            let mockFileDb = [
+                {
+                    id: 1,
+                    name: "Project_Proposal.pdf",
+                    owner: "admin",
+                    encrypted: true,
+                    sharedWith: ["user"],
+                    metadata: { size: "1.2 MB", created: "2025-11-10" },
+                    tags: ["work", "project", "draft"],
+                    isTagging: false,
+                    content: null // Not editable
+                },
+                {
+                    id: 2,
+                    name: "Team_Photos.zip",
+                    owner: "user",
+                    encrypted: true,
+                    sharedWith: [],
+                    metadata: { size: "15.4 MB", created: "2025-11-11" },
+                    tags: ["team", "photos", "archive"],
+                    isTagging: false,
+                    content: null // Not editable
+                },
+                {
+                    id: 3,
+                    name: "Meeting_Notes.txt",
+                    owner: "admin",
+                    encrypted: false, // Demo of an unencrypted file
+                    sharedWith: [],
+                    metadata: { size: "3.1 KB", created: "2025-11-12" },
+                    tags: ["meeting", "notes", "internal"],
+                    isTagging: false,
+                    content: "Initial meeting notes:\n- Discuss Q4 budget.\n- Plan team outing.\n- Review security protocols." // Editable content
+                }
+            ];
+
+            let currentUser = null;
+            let userTryingToLogin = null;
+
+            // --- 3. DOM ELEMENT SELECTORS ---
+            const loginView = document.getElementById('login-view');
+            const appView = document.getElementById('app-view');
+            const loginButton = document.getElementById('login-button');
+            const faButton = document.getElementById('2fa-button');
+            const logoutButton = document.getElementById('logout-button');
+            const uploadButton = document.getElementById('upload-button');
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            const faSection = document.getElementById('2fa-section');
+            const faCodeInput = document.getElementById('2fa-code');
+            const loginError = document.getElementById('login-error');
+            const userGreeting = document.getElementById('user-greeting');
+            const fileInput = document.getElementById('file-input');
+            const fileListBody = document.getElementById('file-list-body');
+
+            // Modal Selectors
+            const modal = document.getElementById('general-modal');
+            const modalContent = document.getElementById('modal-content');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+            const modalFooter = document.getElementById('modal-footer');
+            const modalCloseBtn = document.getElementById('modal-close-btn');
+
+            // --- 4. MODAL HELPER FUNCTIONS ---
+
+            /**
+             * Shows the generic modal with custom content.
+             * @param {string} title - The text for the modal title.
+             * @param {string} bodyHtml - The HTML content for the modal body.
+             * @param {string} footerHtml - The HTML content for the modal footer (buttons).
+             */
+            function showModal(title, bodyHtml, footerHtml) {
+                modalTitle.textContent = title;
+                modalBody.innerHTML = bodyHtml;
+                modalFooter.innerHTML = footerHtml;
+                
+                modal.classList.remove('hidden');
+                // Trigger CSS transitions
+                setTimeout(() => {
+                    modal.classList.add('opacity-100');
+                    modalContent.classList.remove('scale-95', 'opacity-0');
+                    modalContent.classList.add('scale-100', 'opacity-100');
+                }, 10); // Short delay to allow CSS to catch up
+
+                // Add event listeners for new footer buttons
+                modalFooter.querySelectorAll('button').forEach(btn => {
+                    if (btn.id === 'modal-ok' || btn.id === 'modal-cancel') {
+                        btn.onclick = hideModal;
+                    }
+                });
+            }
+
+            /**
+             * Hides the generic modal.
+             */
+            function hideModal() {
+                modalContent.classList.add('scale-95', 'opacity-0');
+                modal.classList.remove('opacity-100');
+                
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    // Clear content after fade out
+                    modalTitle.textContent = '';
+                    modalBody.innerHTML = '';
+                    modalFooter.innerHTML = '';
+                }, 300); // Match transition duration
+            }
+
+            // Close modal when clicking the 'x'
+            modalCloseBtn.onclick = hideModal;
+            // Close modal when clicking the background overlay
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    hideModal();
+                }
+            };
+
+
+            // --- 5. CORE FUNCTIONS ---
+
+            /**
+             * Renders the list of files based on the mockFileDb.
+             */
+            function renderFiles() {
+                fileListBody.innerHTML = ''; // Clear existing list
+
+                if (mockFileDb.length === 0) {
+                     fileListBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">No files found.</td></tr>`;
+                     return;
+                }
+
+                mockFileDb.forEach(file => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+
+                    const isOwner = (file.owner === currentUser);
+                    // Check if file is editable (has non-null content)
+                    const isEditable = file.content !== null;
+
+                    // 1. File Name & Tags
+                    let tagsHtml = '';
+                    if (file.isTagging) {
+                        tagsHtml = '<span class="text-xs text-blue-500 font-medium">✨ Generating tags...</span>';
+                    } else if (file.tags && file.tags.length > 0) {
+                        tagsHtml = file.tags.map(tag => `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">${tag}</span>`).join('');
+                    }
+
+                    tr.innerHTML += `<td class="py-4 px-4 whitespace-nowrap">
+                                        <div class="font-medium text-gray-900">${file.name}</div>
+                                        <div class="flex flex-wrap gap-1 mt-1.5">${tagsHtml}</div>
+                                     </td>`;
+                    
+                    // 2. Owner
+                    tr.innerHTML += `<td class="py-4 px-4 whitespace-nowrap text-sm text-gray-500">${file.owner}</td>`;
+                    
+                    // 3. Status (Encryption)
+                    const statusHtml = file.encrypted
+                        ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                             <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"></path></svg>
+                             Encrypted
+                           </span>`
+                        : `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                             Unencrypted
+                           </span>`;
+                    tr.innerHTML += `<td class="py-4 px-4 whitespace-nowrap text-sm">${statusHtml}</td>`;
+                    
+                    // 4. Metadata
+                    tr.innerHTML += `<td class="py-4 px-4 whitespace-nowrap text-sm text-gray-500">
+                                        <div>${file.metadata.size}</div>
+                                        <div>Shared: ${file.sharedWith.length > 0 ? file.sharedWith.join(', ') : 'None'}</div>
+                                    </td>`;
+                    
+                    // 5. Actions
+                    let ownerActions = '';
+                    if (isOwner) {
+                        if (isEditable) {
+                            ownerActions += `<button data-id="${file.id}" class="edit-btn text-green-600 hover:text-green-900 font-medium mr-3">Edit</button>`;
+                        }
+                        ownerActions += `<button data-id="${file.id}" class="share-btn text-blue-600 hover:text-blue-900 font-medium mr-3">Share</button>
+                                         <button data-id="${file.id}" class="delete-btn text-red-600 hover:text-red-900 font-medium">Delete</button>`;
+                    } else {
+                        ownerActions = `<span class="text-sm text-gray-400">Read-Only</span>`;
+                    }
+
+                    // AI Scan button is available to all
+                    tr.innerHTML += `<td class="py-4 px-4 whitespace-nowrap text-sm">
+                                        <button data-id="${file.id}" class="scan-btn text-purple-600 hover:text-purple-900 font-medium mr-3">✨ Scan</button>
+                                        ${ownerActions}
+                                     </td>`;
+                    
+                    fileListBody.appendChild(tr);
+                });
+
+                addDynamicListeners();
+            }
+
+            /**
+             * Adds listeners to dynamically created buttons
+             */
+            function addDynamicListeners() {
+                document.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.onclick = (e) => handleEdit(e.target.dataset.id);
+                });
+                document.querySelectorAll('.share-btn').forEach(btn => {
+                    btn.onclick = (e) => handleShare(e.target.dataset.id);
+                });
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.onclick = (e) => handleDelete(e.target.dataset.id);
+                });
+                document.querySelectorAll('.scan-btn').forEach(btn => {
+                    btn.onclick = (e) => handleSecurityScan(e.target.dataset.id);
+                });
+            }
+
+            /**
+             * SIMULATION: Logs the user in
+             */
+            function handleLogin(username, password) {
+                const user = mockUserDb[username];
+                if (user && user.password === password) {
+                    if (user.needs2FA) {
+                        loginError.textContent = '';
+                        userTryingToLogin = username;
+                        loginButton.classList.add('hidden');
+                        faSection.classList.remove('hidden');
+                        faButton.classList.remove('hidden');
+                    } else {
+                        completeLogin(username);
+                    }
+                } else {
+                    loginError.textContent = 'Invalid username or password.';
+                }
+            }
+
+            /**
+             * SIMULATION: Verifies 2FA code
+             */
+            function handle2FA() {
+                const code = faCodeInput.value;
+                if (code === '123456') { // Mock code
+                    completeLogin(userTryingToLogin);
+                } else {
+                    loginError.textContent = 'Invalid 2FA code.';
+                }
+            }
+            
+            /**
+             * Finalizes login, updates UI
+             */
+            function completeLogin(username) {
+                currentUser = username;
+                userTryingToLogin = null;
+                loginView.classList.add('hidden');
+                appView.classList.remove('hidden');
+                userGreeting.textContent = currentUser;
+                usernameInput.value = '';
+                passwordInput.value = '';
+                faCodeInput.value = '';
+                loginError.textContent = '';
+                faSection.classList.add('hidden');
+                faButton.classList.add('hidden');
+                loginButton.classList.remove('hidden');
+                renderFiles();
+            }
+
+            /**
+             * SIMULATION: Logs the user out
+             */
+            function handleLogout() {
+                currentUser = null;
+                appView.classList.add('hidden');
+                loginView.classList.remove('hidden');
+                fileListBody.innerHTML = '';
+            }
+
+            /**
+             * SIMULATION: "Uploads" a file, reads its content if text, and triggers AI tagging
+             */
+            async function handleUpload() {
+                const file = fileInput.files[0];
+                if (!file) {
+                    showModal("Upload Error", "<p>Please select a file to upload.</p>", '<button id="modal-ok" class="py-2 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700">OK</button>');
+                    return;
+                }
+
+                // Try to read file content if it's text
+                let fileContent = null;
+                if (file.type.startsWith('text/')) {
+                    try {
+                        fileContent = await file.text();
+                    } catch (e) {
+                        console.error("Error reading file content:", e);
+                        fileContent = "Error: Could not read file content.";
+                    }
+                }
+
+                const newFile = {
+                    id: mockFileDb.length + 100,
+                    name: file.name,
+                    owner: currentUser,
+                    encrypted: true,
+                    sharedWith: [],
+                    metadata: {
+                        size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+                        created: new Date().toISOString().split('T')[0]
+                    },
+                    tags: [],
+                    isTagging: true, // Set tagging state
+                    content: fileContent // Store the content (null if not text)
+                };
+
+                mockFileDb.push(newFile);
+                renderFiles(); // Render immediately to show "Generating tags..."
+                fileInput.value = '';
+
+                // Asynchronously generate tags and re-render
+                generateTags(newFile);
+            }
+
+            /**
+             * SIMULATION: "Writes" (edits) a text file's content
+             */
+            function handleEdit(fileId) {
+                const file = mockFileDb.find(f => f.id == fileId);
+                // Double-check permissions and editability
+                if (!file || file.owner !== currentUser || file.content === null) {
+                    showModal("Permission Error", "<p>This file cannot be edited. It may be a binary file or you may not have permission.</p>", '<button id="modal-ok" class="py-2 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700">OK</button>');
+                    return;
+                }
+                
+                // Use innerText to safely display content in textarea
+                const safeContent = document.createElement('textarea');
+                safeContent.innerText = file.content;
+
+                const body = `
+                    <p class="mb-2 text-sm text-gray-500">You are editing <strong>${file.name}</strong>.</p>
+                    <textarea id="modal-edit-content" class="w-full h-64 p-2 border border-gray-300 rounded-lg font-mono text-sm">${safeContent.innerHTML}</textarea>`;
+                
+                const footer = `
+                    <button id="modal-cancel" class="py-2 px-4 rounded-lg bg-gray-200 hover:bg-gray-300">Cancel</button>
+                    <button id="modal-confirm-save" class="py-2 px-4 rounded-lg bg-green-600 text-white hover:bg-green-700">Save Changes</button>`;
+                
+                showModal(`Edit File: ${file.name}`, body, footer);
+
+                document.getElementById('modal-confirm-save').onclick = () => {
+                    const newContent = document.getElementById('modal-edit-content').value;
+                    file.content = newContent; // "Save" the content back to the mock DB
+                    hideModal();
+                    // Optionally, we could re-render, but it's not necessary
+                    // renderFiles(); 
+                };
+            }
+
+
+            /**
+             * SIMULATION: "Shares" a file using the modal
+             */
+            function handleShare(fileId) {
+                const file = mockFileDb.find(f => f.id == fileId);
+                if (!file) return;
+
+                const body = `
+                    <p class="mb-2">Enter username to share <strong>${file.name}</strong> with (e.g., 'user' or 'admin'):</p>
+                    <input type="text" id="modal-share-input" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="Username">
+                    <p id="modal-share-error" class="text-red-500 text-sm mt-2"></p>`;
+                
+                const footer = `
+                    <button id="modal-cancel" class="py-2 px-4 rounded-lg bg-gray-200 hover:bg-gray-300">Cancel</button>
+                    <button id="modal-confirm-share" class="py-2 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Share</button>`;
+                
+                showModal("Share File", body, footer);
+
+                document.getElementById('modal-confirm-share').onclick = () => {
+                    const userToShareWith = document.getElementById('modal-share-input').value;
+                    const errorP = document.getElementById('modal-share-error');
+
+                    if (!userToShareWith) {
+                        errorP.textContent = "Please enter a username.";
+                        return;
+                    }
+                    if (!mockUserDb[userToShareWith]) {
+                        errorP.textContent = "User does not exist.";
+                        return;
+                    }
+                    if (file.sharedWith.includes(userToShareWith)) {
+                        errorP.textContent = "File is already shared with this user.";
+                        return;
+                    }
+                    
+                    // Access Control check
+                    if (file.owner === currentUser) {
+                        file.sharedWith.push(userToShareWith);
+                        renderFiles();
+                        hideModal();
+                    } else {
+                        errorP.textContent = "You do not have permission to share this file.";
+                    }
+                };
+            }
+
+            /**
+             * SIMULATION: "Deletes" a file using a confirmation modal
+             */
+            function handleDelete(fileId) {
+                const file = mockFileDb.find(f => f.id == fileId);
+                if (!file) return;
+                
+                const body = `<p>Are you sure you want to permanently delete <strong>${file.name}</strong>? This cannot be undone.</p>`;
+                const footer = `
+                    <button id="modal-cancel" class="py-2 px-4 rounded-lg bg-gray-200 hover:bg-gray-300">Cancel</button>
+                    <button id="modal-confirm-delete" class="py-2 px-4 rounded-lg bg-red-600 text-white hover:bg-red-700">Delete</button>`;
+                
+                showModal("Confirm Deletion", body, footer);
+
+                document.getElementById('modal-confirm-delete').onclick = () => {
+                    const fileIndex = mockFileDb.findIndex(f => f.id == fileId);
+                    
+                    // Access Control Check
+                    if (fileIndex > -1 && mockFileDb[fileIndex].owner === currentUser) {
+                        mockFileDb.splice(fileIndex, 1);
+                        renderFiles();
+                        hideModal();
+                    } else {
+                        hideModal();
+                        showModal("Permission Error", "<p>You do not have permission to delete this file.</p>", '<button id="modal-ok" class="py-2 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700">OK</button>');
+                    }
+                };
+            }
+
+            // --- 6. NEW GEMINI API FUNCTIONS ---
+
+            /**
+             * ✨ Calls Gemini API to get a simulated security report.
+             * This now conceptually covers "malware" (by file type) and "buffer overflow" (by scanning content for malicious input).
+             * @param {string} fileId - The ID of the file to scan.
+             */
+            async function handleSecurityScan(fileId) {
+                const file = mockFileDb.find(f => f.id == fileId);
+                if (!file) return;
+
+                // Show loading modal
+                const loadingBody = `<div class="flex items-center justify-center p-4">
+                                       <div class="spinner"></div>
+                                       <p class="ml-4 text-gray-600">✨ Scanning <strong>${file.name}</strong> for threats...</p>
+                                     </div>`;
+                showModal("AI Security Scan", loadingBody, '');
+
+                // Updated system prompt to check for malicious content
+                const systemPrompt = "You are a cybersecurity analyst. Your job is to analyze file metadata and *simulated content* to provide a security assessment. 1. Analyze the file type for common risks (e.g., '.zip' for malware, '.pdf' for exploits). 2. If the file is a text file, scan its content for *potential* injection attacks (like `<script>` tags, SQL syntax) or sensitive data (like 'password='). 3. Conclude with a brief, one-paragraph (2-3 sentences) assessment. Be concise and professional.";
+                
+                let userPrompt = `File: ${file.name}, Size: ${file.metadata.size}, Owner: ${file.owner}`;
+                
+                // Add content to the prompt if it's a text file
+                if (file.content) {
+                    userPrompt += `\nContent (snippet): "${file.content.substring(0, 200)}..."`;
+                }
+
+                const report = await callGeminiAPI(systemPrompt, userPrompt);
+
+                // Show result modal
+                const reportBody = `<p class="whitespace-pre-wrap">${report}</p>`;
+                const reportFooter = `<button id="modal-ok" class="py-2 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Done</button>`;
+                showModal("AI Security Scan Result", reportBody, reportFooter);
+            }
+
+            /**
+             * ✨ Calls Gemini API to generate tags for a newly uploaded file.
+             * @param {object} file - The file object to add tags to.
+             */
+            async function generateTags(file) {
+                const systemPrompt = "You are a file organization expert. Based on the file name, suggest 3-5 relevant, single-word tags in lowercase. Return *only* a comma-separated list (e.g., 'work,project,draft,annual,report').";
+                const userPrompt = `File name: ${file.name}`;
+                
+                try {
+                    const tagString = await callGeminiAPI(systemPrompt, userPrompt);
+                    if (tagString && !tagString.startsWith("Error:")) {
+                        file.tags = tagString.split(',').map(tag => tag.trim().toLowerCase()).filter(Boolean);
+                    } else {
+                        file.tags = ["tagging-error"];
+                    }
+                } catch (error) {
+                    file.tags = ["tagging-error"];
+                }
+                
+                file.isTagging = false;
+                renderFiles(); // Re-render the list with the new tags
+            }
+
+
+            // --- 7. INITIAL EVENT LISTENERS ---
+            loginButton.addEventListener('click', () => handleLogin(usernameInput.value, passwordInput.value));
+            faButton.addEventListener('click', handle2FA);
+            logoutButton.addEventListener('click', handleLogout);
+            uploadButton.addEventListener('click', handleUpload);
+
+        });
+    </script>
+</body>
+</html>
