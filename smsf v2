@@ -69,7 +69,7 @@ export default function SecureFileSystem() {
   const [activeTab, setActiveTab] = useState('files');
   const [modal, setModal] = useState(null);
 
-  // --- Security Logic & Helpers ---
+  //  Security Logic & Helpers 
 
   const addLog = (type, message) => {
     setLogs(prev => [{ time: getCurrentTime(), type, message }, ...prev]);
